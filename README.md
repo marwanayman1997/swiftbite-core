@@ -56,12 +56,16 @@ All routes are mounted under `/api`.
 | POST   | `/auth/reset-password`   | Reset password with OTP               |
 | GET    | `/user/me`               | Get the current user (auth required)  |
 | PATCH  | `/user/me`               | Update the current user (auth required) |
+| GET    | `/customer/addresses`            | List the current user's addresses (auth required) |
+| POST   | `/customer/addresses`            | Add an address (auth required)        |
+| PATCH  | `/customer/addresses/{addressId}` | Update an address (auth required)     |
+| DELETE | `/customer/addresses/{addressId}` | Delete an address (auth required)     |
 
 ## Project structure
 
 ```
 src/
-  app/            # feature modules (auth, user, health)
+  app/            # feature modules (auth, user, customer-address, health)
   common/         # shared config, error handling, logging, validation, auth guard
   migrations/     # Knex migrations
 ```
