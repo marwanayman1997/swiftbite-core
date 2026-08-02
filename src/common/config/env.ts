@@ -1,24 +1,50 @@
+import path from "path";
+import { fileURLToPath } from "url";
 import { config } from "dotenv";
 import { z } from "zod";
 
-config();
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+config({ path: path.resolve(__dirname, "../../../.env") });
 
 const schema = z.object({
-  PORT: z.coerce.number().int().positive().default(3000),
-  DB_HOST: z.string().min(1),
-  DB_PORT: z.coerce.number().int().positive().default(5432),
-  DB_USER: z.string().min(1),
-  DB_PASSWORD: z.string().min(1),
-  DB_NAME: z.string().min(1),
-  DB_POOL_MAX: z.coerce.number().int().positive().default(10),
+  PORT: z.string().default("3000"),
+  DB_HOST: z.string().default("localhost"),
+  DB_PORT: z.string().default("5432"),
+  DB_USERNAME: z.string().default("postgres"),
+  DB_PASSWORD: z.string(),
+  DB_NAME: z.string(),
+  DB_POOL_MAX: z.string().default("10"),
+  DB_MIGRATION_DIRECTORY: z.string(),
+  DB_MIGRATION_EXTENSION: z.string(),
+  ACCESS_SECRET: z.string(),
+  REFRESH_SECRET: z.string(),
+  ACCESS_EXPIRES_IN: z.string(),
+  REFRESH_EXPIRES_IN: z.string(),
 });
 
-const parsed = schema.safeParse(process.env);
+const parsed = schema.parse(process.env);
 
-if (!parsed.success) {
-  throw new Error(
-    `Invalid environment variables: ${z.prettifyError(parsed.error)}`,
-  );
-}
-
-export const env = parsed.data;
+export const env = {
+  port: Number(parsed.PORT),
+  db: {
+    host: parsed.DB_HOST,
+    port: Number(parsed.DB_PORT),
+    username: parsed.DB_USERNAME,
+    password: parsed.DB_PASSWORD,
+    name: parsed.DB_NAME,
+    poolMax: Number(parsed.DB_POOL_MAX),
+    migrationDirectory: path.resolve(
+      __dirname,
+      "../../../",
+      parsed.DB_MIGRATION_DIRECTORY,
+    ),
+    migrationExtension: parsed.DB_MIGRATION_EXTENSION,
+  },
+  jwt: {
+    refreshSecret: parsed.REFRESH_SECRET,
+    accessSecret: parsed.ACCESS_SECRET,
+    accessExpiresIn: parsed.ACCESS_EXPIRES_IN,
+    refreshExpiresIn: parsed.REFRESH_EXPIRES_IN,
+  },
+};
