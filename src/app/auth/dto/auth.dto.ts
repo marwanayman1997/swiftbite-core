@@ -5,6 +5,8 @@ import {
   IsStrongPassword,
   MaxLength,
   IsEnum,
+  IsNotEmpty,
+  Length,
 } from "class-validator";
 import { SystemRole } from "../../user/enums.ts";
 
@@ -37,4 +39,42 @@ export class RegisterDTO {
 
   @IsEnum(SystemRole)
   role!: SystemRole;
+}
+
+export class LoginDTO {
+  @IsEmail()
+  email!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  password!: string;
+}
+
+export class ForgetPasswordDTO {
+  @IsEmail()
+  email!: string;
+}
+
+export class ResetPasswordDTO {
+  @IsEmail()
+  email!: string;
+
+  @IsString()
+  @Length(6)
+  otp!: string;
+
+  @IsStrongPassword(
+    {
+      minLength: 8,
+      minLowercase: 1,
+      minUppercase: 1,
+      minNumbers: 1,
+      minSymbols: 1,
+    },
+    {
+      message:
+        "Password is not strong enough. It must contain at least 8 characters, one uppercase letter, one lowercase letter, one number & one special character.",
+    },
+  )
+  newPassword!: string;
 }

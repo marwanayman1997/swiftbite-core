@@ -8,6 +8,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 config({ path: path.resolve(__dirname, "../../../.env") });
 
 const schema = z.object({
+  NODE_ENV: z.string().default("development"),
   PORT: z.string().default("3000"),
   DB_HOST: z.string().default("localhost"),
   DB_PORT: z.string().default("5432"),
@@ -26,6 +27,7 @@ const schema = z.object({
 const parsed = schema.parse(process.env);
 
 export const env = {
+  nodeEnv: parsed.NODE_ENV,
   port: Number(parsed.PORT),
   db: {
     host: parsed.DB_HOST,
@@ -47,4 +49,5 @@ export const env = {
     accessExpiresIn: parsed.ACCESS_EXPIRES_IN,
     refreshExpiresIn: parsed.REFRESH_EXPIRES_IN,
   },
+  isProduction: process.env.NODE_ENV === "production",
 };

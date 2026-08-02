@@ -9,7 +9,7 @@ SwiftBite — a food ordering platform for browsing menus, placing orders, and t
 - Knex + PostgreSQL
 - Zod (env validation)
 - class-validator (request DTO validation)
-- JWT auth (access + refresh tokens)
+- JWT auth (access + refresh tokens, delivered via cookies)
 
 ## Getting started
 
@@ -43,11 +43,25 @@ SwiftBite — a food ordering platform for browsing menus, placing orders, and t
 - `npm run build` — compile TypeScript to `dist/`
 - `npm start` — run the compiled build (`dist/server.js`)
 
+## API
+
+All routes are mounted under `/api`.
+
+| Method | Path                     | Description                          |
+| ------ | ------------------------ | ------------------------------------- |
+| GET    | `/health`                | DB connectivity check                 |
+| POST   | `/auth/register`         | Register a new user                   |
+| POST   | `/auth/login`            | Log in                                |
+| POST   | `/auth/forget-password`  | Request a password reset OTP          |
+| POST   | `/auth/reset-password`   | Reset password with OTP               |
+| GET    | `/user/me`               | Get the current user (auth required)  |
+| PATCH  | `/user/me`               | Update the current user (auth required) |
+
 ## Project structure
 
 ```
 src/
   app/            # feature modules (auth, user, health)
-  common/         # shared config, error handling, logging, validation
+  common/         # shared config, error handling, logging, validation, auth guard
   migrations/     # Knex migrations
 ```

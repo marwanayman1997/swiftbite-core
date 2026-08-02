@@ -40,6 +40,17 @@ export async function findUserByEmail(
   return row ? toEntity(row) : undefined;
 }
 
+export async function findUserById(id: number): Promise<User | undefined> {
+  const row = await db("users")
+    .select(USER_COLUMNS)
+    .where("id", id)
+    .whereNull("deleted_at")
+    .first();
+
+  console.log(row);
+  return row ? toEntity(row) : undefined;
+}
+
 export async function findUserExistsByEmailOrPhone(
   email: string,
   phone: string,
@@ -64,6 +75,25 @@ export async function createUser(user: Partial<User>): Promise<User> {
       system_role: user.systemRole,
       created_at: user.createdAt,
       updated_at: user.updatedAt,
+    })
+    .returning(USER_COLUMNS);
+
+  return toEntity(row);
+}
+
+export async function updateUserPassword(id: number, password: string) {
+  await db("users").where("id", id).update({ password_hash: password });
+}
+
+export async function updateUser(
+  id: number,
+  data: Partial<{ name: string; phone: string }>,
+): Promise<User> {
+  const [row] = await db("users")
+    .where("id", id)
+    .update({
+      ...data,
+      updated_at: new Date(),
     })
     .returning(USER_COLUMNS);
 

@@ -3,16 +3,33 @@ import {
   findUserByEmail,
   findUserExistsByEmailOrPhone,
   createUser,
+  updateUserPassword,
 } from "../../user/repository/users.repo.ts";
-import { RegisterDTO } from "../dto/auth.dto.ts";
+import {
+  ForgetPasswordDTO,
+  LoginDTO,
+  RegisterDTO,
+  ResetPasswordDTO,
+} from "../dto/auth.dto.ts";
 import {
   UserAlreadyExistsError,
   CannotSignupAsSystemAdmin,
+  IncorrectCredentials,
+  InvalidOTPError,
 } from "../errors.ts";
+import {
+  createPasswordReset,
+  findLatestPasswordResetByUserId,
+  updatePasswordResetConsumedAt,
+} from "../repository/password-reset.repo.ts";
 import {
   hashPassword,
   createAccessToken,
   createRefreshToken,
+  comparePassword,
+  generateOTP,
+  hashOTP,
+  verifyRefreshToken,
 } from "../utils.ts";
 
 export class AuthService {
@@ -45,6 +62,7 @@ export class AuthService {
     const refreshToken = createRefreshToken(payload);
 
     return {
+      message: "User successfully registered",
       accessToken,
       refreshToken,
       user: {
@@ -52,8 +70,97 @@ export class AuthService {
         email: user.email,
         phone: user.phone,
         systemRole: user.systemRole,
+        createdAt: user.createdAt,
       },
     };
+  };
+
+  login = async (data: LoginDTO) => {
+    const user = await findUserByEmail(data.email);
+
+    if (!user) {
+      throw IncorrectCredentials;
+    }
+
+    const match = await comparePassword(data.password, user.passwordHash);
+    if (!match) {
+      throw IncorrectCredentials;
+    }
+
+    const payload = {
+      userId: user.id,
+      role: user.systemRole,
+      email: user.email,
+    };
+
+    const accessToken = createAccessToken(payload);
+    const refreshToken = createRefreshToken(payload);
+    return {
+      message: "Login successful",
+      accessToken,
+      refreshToken,
+      user: {
+        id: user.id,
+        email: user.email,
+        phone: user.phone,
+        systemRole: user.systemRole,
+        createdAt: user.createdAt,
+      },
+    };
+  };
+
+  forgetPassword = async (data: ForgetPasswordDTO) => {
+    const user = await findUserByEmail(data.email);
+    if (!user) {
+      return;
+    }
+    const otp = generateOTP();
+    const hashedOtp = hashOTP(otp);
+
+    await createPasswordReset({
+      userId: user.id,
+      otpHash: hashedOtp,
+      expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+      createdAt: new Date(),
+    });
+    // TODO: send email
+    console.log(`Mocked email sent ${otp}`);
+  };
+
+  resetPassword = async (data: ResetPasswordDTO) => {
+    const user = await findUserByEmail(data.email);
+
+    if (!user) {
+      throw InvalidOTPError;
+    }
+
+    const reset = await findLatestPasswordResetByUserId(user.id);
+
+    if (!reset) {
+      throw InvalidOTPError;
+    }
+
+    const inputOTPHash = hashOTP(data.otp);
+    if (inputOTPHash != reset.otpHash || reset.isExpired()) {
+      throw InvalidOTPError;
+    }
+
+    const hashedPassword = await hashPassword(data.newPassword);
+    await updateUserPassword(user.id, hashedPassword);
+    await updatePasswordResetConsumedAt(reset.id);
+  };
+
+  refresh = async (refreshToken: string) => {
+    if (!refreshToken) {
+      throw IncorrectCredentials;
+    }
+    const payload = verifyRefreshToken(refreshToken);
+    const accessToken = createAccessToken({
+      userId: payload.userId,
+      role: payload.role,
+      email: payload.email,
+    });
+    return { accessToken };
   };
 }
 
