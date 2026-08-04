@@ -1,3 +1,8 @@
+import { db } from "../../../common/knex/knex.ts";
+import {
+  restaurantService,
+  RestaurantService,
+} from "../../restaurant/service/restaurant.service.ts";
 import { SystemRole } from "../../user/enums.ts";
 import {
   findUserByEmail,
@@ -16,6 +21,7 @@ import {
   CannotSignupAsSystemAdmin,
   IncorrectCredentials,
   InvalidOTPError,
+  RestaurantDataRequiredError,
 } from "../errors.ts";
 import {
   createPasswordReset,
@@ -33,6 +39,8 @@ import {
 } from "../utils.ts";
 
 export class AuthService {
+  constructor(private readonly restaurantService: RestaurantService) {}
+
   register = async (data: RegisterDTO) => {
     if (data.role == SystemRole.SYSTEM_ADMIN) {
       throw CannotSignupAsSystemAdmin;
@@ -47,15 +55,40 @@ export class AuthService {
     const hashedPassword = await hashPassword(data.password);
 
     const now = new Date();
-    const user = await createUser({
-      email: data.email,
-      phone: data.phone,
-      name: data.name,
-      passwordHash: hashedPassword,
-      systemRole: data.role,
-      createdAt: now,
-      updatedAt: now,
-    });
+
+    const trx = await db.transaction();
+    let user;
+    let restaurant;
+    try {
+      user = await createUser(
+        {
+          email: data.email,
+          phone: data.phone,
+          name: data.name,
+          passwordHash: hashedPassword,
+          systemRole: data.role,
+          createdAt: now,
+          updatedAt: now,
+        },
+        trx,
+      );
+
+      if (data.role == SystemRole.RESTAURANT_USER) {
+        if (data.restaurant == undefined) {
+          throw RestaurantDataRequiredError;
+        }
+        restaurant = await this.restaurantService.create(
+          user.id,
+          data.restaurant,
+          trx,
+        );
+      }
+
+      await trx.commit();
+    } catch (error) {
+      await trx.rollback();
+      throw error;
+    }
 
     const payload = { userId: user.id, role: data.role, email: user.email };
     const accessToken = createAccessToken(payload);
@@ -72,6 +105,7 @@ export class AuthService {
         systemRole: user.systemRole,
         createdAt: user.createdAt,
       },
+      restaurant,
     };
   };
 
@@ -164,4 +198,4 @@ export class AuthService {
   };
 }
 
-export const authService = new AuthService();
+export const authService = new AuthService(restaurantService);

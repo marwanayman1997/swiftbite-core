@@ -1,18 +1,38 @@
 import { validate, type ValidationError } from "class-validator";
+import { plainToInstance } from "class-transformer";
 import { AppError } from "../error/AppError.ts";
 
-export async function validateBody<T extends Object>(
+function flattenConstraints(errors: ValidationError[]): string[] {
+  return errors.flatMap((e) => [
+    ...Object.values(e.constraints ?? {}),
+    ...flattenConstraints(e.children ?? []),
+  ]);
+}
+
+async function validateInstance<T extends Object>(
   cls: new () => T,
-  body: unknown,
+  data: unknown,
 ): Promise<T> {
-  const instance = Object.assign(new cls(), body);
+  const instance = plainToInstance(cls, data);
   const errors = await validate(instance, { whitelist: true });
 
   if (errors.length > 0) {
-    const messages = errors.flatMap((e: ValidationError) =>
-      Object.values(e.constraints ?? {}),
-    );
+    const messages = flattenConstraints(errors);
     throw new AppError(messages.join(", \n"), 400);
   }
   return instance;
+}
+
+export function validateBody<T extends Object>(
+  cls: new () => T,
+  body: unknown,
+): Promise<T> {
+  return validateInstance(cls, body);
+}
+
+export function validateParams<T extends Object>(
+  cls: new () => T,
+  params: unknown,
+): Promise<T> {
+  return validateInstance(cls, params);
 }

@@ -1,3 +1,4 @@
+import "reflect-metadata";
 import http from "http";
 import { createApp } from "./app.ts";
 import { env } from "./common/config/env.ts";
