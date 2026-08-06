@@ -5,6 +5,7 @@ import { userRouter } from "./app/user/routes.ts";
 import { customerAddressRouter } from "./app/customer-address/routes.ts";
 import { restaurantRouter } from "./app/restaurant/routes.ts";
 import { branchRouter } from "./app/branch/routes.ts";
+import { productRouter } from "./app/product/routes.ts";
 
 export const routes: Router = Router();
 
@@ -14,3 +15,4 @@ routes.use("/user", userRouter);
 routes.use("/customer/addresses", customerAddressRouter);
 routes.use("/restaurants", restaurantRouter);
 routes.use("/", branchRouter);
+routes.use("/product", productRouter);
