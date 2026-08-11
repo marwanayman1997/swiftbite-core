@@ -1,5 +1,14 @@
 import { db } from "../../../common/knex/knex.ts";
 import {
+  activateMemberByUserId,
+  findRestaurantMemberWithRole,
+} from "../../rbac/repository/restaurant_member.repo.ts";
+import { findBranchIdsByMemberId } from "../../rbac/repository/member-branch.repo.ts";
+import {
+  memberService,
+  MemberService,
+} from "../../rbac/service/member.service.ts";
+import {
   restaurantService,
   RestaurantService,
 } from "../../restaurant/service/restaurant.service.ts";
@@ -10,6 +19,7 @@ import {
   createUser,
   updateUserPassword,
 } from "../../user/repository/users.repo.ts";
+import { userService, UserService } from "../../user/service/user.service.ts";
 import {
   ForgetPasswordDTO,
   LoginDTO,
@@ -39,36 +49,34 @@ import {
 } from "../utils.ts";
 
 export class AuthService {
-  constructor(private readonly restaurantService: RestaurantService) {}
+  constructor(
+    private readonly restaurantService: RestaurantService,
+    private readonly userService: UserService,
+    private readonly memberService: MemberService,
+  ) {}
 
   register = async (data: RegisterDTO) => {
     if (data.role == SystemRole.SYSTEM_ADMIN) {
       throw CannotSignupAsSystemAdmin;
     }
 
-    const existing = await findUserExistsByEmailOrPhone(data.email, data.phone);
-
-    if (existing) {
-      throw UserAlreadyExistsError;
-    }
-
-    const hashedPassword = await hashPassword(data.password);
-
-    const now = new Date();
-
     const trx = await db.transaction();
     let user;
     let restaurant;
+    let restaurantMemberInfo: {
+      restaurantId?: number;
+      restaurantRole?: string;
+      branchIds?: number[];
+    } = {};
+
     try {
-      user = await createUser(
+      user = await this.userService.create(
         {
           email: data.email,
           phone: data.phone,
           name: data.name,
-          passwordHash: hashedPassword,
+          password: data.password,
           systemRole: data.role,
-          createdAt: now,
-          updatedAt: now,
         },
         trx,
       );
@@ -77,11 +85,19 @@ export class AuthService {
         if (data.restaurant == undefined) {
           throw RestaurantDataRequiredError;
         }
+
         restaurant = await this.restaurantService.create(
           user.id,
           data.restaurant,
           trx,
         );
+
+        await this.memberService.createOwnerMember(restaurant.id, user.id, trx);
+        restaurantMemberInfo = {
+          restaurantId: restaurant.id,
+          restaurantRole: "owner",
+          branchIds: [],
+        };
       }
 
       await trx.commit();
@@ -90,12 +106,17 @@ export class AuthService {
       throw error;
     }
 
-    const payload = { userId: user.id, role: data.role, email: user.email };
+    const payload = {
+      userId: user.id,
+      role: data.role,
+      email: user.email,
+      ...restaurantMemberInfo,
+    };
     const accessToken = createAccessToken(payload);
     const refreshToken = createRefreshToken(payload);
 
     return {
-      message: "User successfully registered",
+      message: "successfully registered user",
       accessToken,
       refreshToken,
       user: {
@@ -106,6 +127,25 @@ export class AuthService {
         createdAt: user.createdAt,
       },
       restaurant,
+    };
+  };
+
+  private getRestaurantMemberContext = async (
+    userId: number,
+  ): Promise<{
+    restaurantId?: number;
+    restaurantRole?: string;
+    branchIds?: number[];
+  }> => {
+    const result = await findRestaurantMemberWithRole(userId);
+    if (!result) {
+      return {};
+    }
+    const branchIds = await findBranchIdsByMemberId(result.member.id);
+    return {
+      restaurantId: result.member.restaurantId,
+      restaurantRole: result.roleName,
+      branchIds,
     };
   };
 
@@ -121,10 +161,15 @@ export class AuthService {
       throw IncorrectCredentials;
     }
 
+    const restaurantMemberInfo = await this.getRestaurantMemberContext(
+      user.id,
+    );
+
     const payload = {
       userId: user.id,
       role: user.systemRole,
       email: user.email,
+      ...restaurantMemberInfo,
     };
 
     const accessToken = createAccessToken(payload);
@@ -182,6 +227,13 @@ export class AuthService {
     const hashedPassword = await hashPassword(data.newPassword);
     await updateUserPassword(user.id, hashedPassword);
     await updatePasswordResetConsumedAt(reset.id);
+
+    return user;
+  };
+
+  acceptInvite = async (data: ResetPasswordDTO) => {
+    const user = await this.resetPassword(data);
+    await activateMemberByUserId(user.id);
   };
 
   refresh = async (refreshToken: string) => {
@@ -193,9 +245,16 @@ export class AuthService {
       userId: payload.userId,
       role: payload.role,
       email: payload.email,
+      restaurantId: payload.restaurantId,
+      restaurantRole: payload.restaurantRole,
+      branchIds: payload.branchIds,
     });
     return { accessToken };
   };
 }
 
-export const authService = new AuthService(restaurantService);
+export const authService = new AuthService(
+  restaurantService,
+  userService,
+  memberService,
+);

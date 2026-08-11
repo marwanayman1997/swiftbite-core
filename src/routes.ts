@@ -6,6 +6,7 @@ import { customerAddressRouter } from "./app/customer-address/routes.ts";
 import { restaurantRouter } from "./app/restaurant/routes.ts";
 import { branchRouter } from "./app/branch/routes.ts";
 import { productRouter } from "./app/product/routes.ts";
+import { rbacRouter } from "./app/rbac/routes.ts";
 
 export const routes: Router = Router();
 
@@ -16,3 +17,4 @@ routes.use("/customer/addresses", customerAddressRouter);
 routes.use("/restaurants", restaurantRouter);
 routes.use("/", branchRouter);
 routes.use("/product", productRouter);
+routes.use("/", rbacRouter);

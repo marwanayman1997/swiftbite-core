@@ -24,6 +24,11 @@ import {
   updateRestaurantById,
   updateRestaurantStatus,
 } from "../repository/restaurant.repo.ts";
+import { userService, UserService } from "../../user/service/user.service.ts";
+import {
+  memberService,
+  MemberService,
+} from "../../rbac/service/member.service.ts";
 
 function toPublicRestaurant(restaurant: RestaurantEntity) {
   return {
@@ -39,6 +44,11 @@ function toPublicRestaurant(restaurant: RestaurantEntity) {
 }
 
 export class RestaurantService {
+  constructor(
+    private readonly userService: UserService,
+    private readonly memberService: MemberService,
+  ) {}
+
   create = async (userId: number, data: RegisterRestaurantDTO, trx: Knex) => {
     const now = new Date();
     const restaurant = new RestaurantEntity({
@@ -69,74 +79,58 @@ export class RestaurantService {
     return toPublicRestaurant(restaurant);
   };
 
-  createWithOwner = async (role: SystemRole, data: CreateRestaurantDTO) => {
-    if (role !== SystemRole.SYSTEM_ADMIN) {
+  createWithOwner = async (userRole: SystemRole, data: CreateRestaurantDTO) => {
+    if (userRole !== SystemRole.SYSTEM_ADMIN) {
       throw UnAuthorizedError;
     }
 
-    const existing = await findUserExistsByEmailOrPhone(
-      data.owner.email,
-      data.owner.phone,
-    );
-    if (existing) {
-      throw UserAlreadyExistsError;
-    }
-
-    const hashedPassword = await hashPassword(data.owner.password);
     const now = new Date();
-
     const trx = await db.transaction();
-    let owner;
-    let restaurant;
+
     try {
-      owner = await createUser(
+      const user = await this.userService.create(
         {
           email: data.owner.email,
           phone: data.owner.phone,
           name: data.owner.name,
-          passwordHash: hashedPassword,
+          password: data.owner.password,
           systemRole: SystemRole.RESTAURANT_USER,
+        },
+        trx,
+      );
+
+      const restaurant = await createRestaurant(
+        new RestaurantEntity({
+          ownerId: user.id,
+          name: data.name,
+          logoURL: data.logoUrl ?? "",
+          primaryCountry: data.primaryCountry,
+          status: RestaurantStatus.ACTIVE,
           createdAt: now,
           updatedAt: now,
-        },
+          statusUpdatedAt: now,
+        }),
         trx,
       );
 
-      restaurant = await this.create(
-        owner.id,
-        {
-          name: data.name,
-          logoURL: data.logoUrl,
-          primaryCountry: data.primaryCountry,
-        },
-        trx,
-      );
+      await this.memberService.createOwnerMember(restaurant.id, user.id, trx);
 
       await trx.commit();
+
+      return {
+        restaurant,
+        owner: {
+          id: user.id,
+          email: user.email,
+          phone: user.phone,
+          name: user.name,
+          systemRole: user.systemRole,
+        },
+      };
     } catch (error) {
       await trx.rollback();
       throw error;
     }
-
-    return {
-      message: "Restaurant created successfully",
-      restaurant: {
-        id: restaurant.id,
-        ownerId: restaurant.ownerId,
-        name: restaurant.name,
-        logoURL: restaurant.logoURL,
-        primaryCountry: restaurant.primaryCountry,
-        status: restaurant.status,
-        createdAt: restaurant.createdAt,
-      },
-      owner: {
-        id: owner.id,
-        email: owner.email,
-        phone: owner.phone,
-        name: owner.name,
-        systemRole: owner.systemRole,
-      },
-    };
   };
 
   update = async (
@@ -199,4 +193,7 @@ export class RestaurantService {
   };
 }
 
-export const restaurantService = new RestaurantService();
+export const restaurantService = new RestaurantService(
+  userService,
+  memberService,
+);

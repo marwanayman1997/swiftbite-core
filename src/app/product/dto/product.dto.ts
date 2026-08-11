@@ -44,7 +44,6 @@ export class UpdateProductDTO {
   @IsString()
   categoryName?: string;
 
-  // branch-level overrides (requires branchId query param)
   @IsOptional()
   @IsInt()
   @Min(0)
