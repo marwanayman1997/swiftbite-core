@@ -1,11 +1,28 @@
 import { Request, Response, NextFunction } from "express";
-import { validateBody } from "../../../common/validation/validate.ts";
+import { validateBody } from "../../../lib/validation/validate.ts";
 import { SystemRole } from "../../user/enums.ts";
 import { CreateProductDTO, UpdateProductDTO } from "../dto/product.dto.ts";
-import { ProductService, productService } from "../service/product.service.ts";
+import { ProductService } from "../service/product.service.ts";
+import { sendPaginated, sendSuccess } from "../../../lib/http/response.ts";
+import {
+  parseFilters,
+  parsePaginationQuery,
+} from "../../../lib/http/pagination/parse-query.ts";
+import { inject, injectable } from "tsyringe";
+import { TOKENS } from "../../../lib/di/tokens.ts";
 
+const PRODUCT_SORT_FIELDS = ["created_at", "name"];
+const PRODUCT_FILTER_FIELDS = ["category_id"];
+
+const BRANCH_PRODUCT_SORT_FIELDS = ["p.created_at", "p.name", "pbd.price", "pbd.stock"];
+const BRANCH_PRODUCT_FILTER_FIELDS = ["p.category_id", "pbd.is_available", "pbd.price"];
+
+@injectable()
 export class ProductController {
-  constructor(private readonly productService: ProductService) {}
+  constructor(
+    @inject(TOKENS.ProductService)
+    private readonly productService: ProductService,
+  ) {}
 
   create = async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -16,9 +33,7 @@ export class ProductController {
         req.user?.role! as SystemRole,
         data,
       );
-      res
-        .status(201)
-        .json({ message: "Product successfully created", product });
+      sendSuccess(res, { message: "Product created successfully", product }, 201);
     } catch (err) {
       next(err);
     }
@@ -30,12 +45,19 @@ export class ProductController {
     next: NextFunction,
   ) => {
     try {
-      const results = await this.productService.findByRestaurant(
+      const pagination = parsePaginationQuery(req.query, {
+        allowedSortFields: PRODUCT_SORT_FIELDS,
+        defaultSortBy: "created_at",
+      });
+      const filters = parseFilters(req.query, PRODUCT_FILTER_FIELDS);
+      const { data, meta } = await this.productService.findByRestaurant(
         Number(req.params.restaurantId),
         req.user?.userId!,
         req.user?.role! as SystemRole,
+        pagination,
+        filters,
       );
-      res.status(200).json({ data: results });
+      sendPaginated(res, data, meta);
     } catch (err) {
       next(err);
     }
@@ -46,7 +68,7 @@ export class ProductController {
       const results = await this.productService.findCategories(
         Number(req.params.restaurantId),
       );
-      res.status(200).json({ data: results });
+      sendSuccess(res, results);
     } catch (err) {
       next(err);
     }
@@ -54,10 +76,17 @@ export class ProductController {
 
   findByBranch = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const results = await this.productService.findByBranch(
+      const pagination = parsePaginationQuery(req.query, {
+        allowedSortFields: BRANCH_PRODUCT_SORT_FIELDS,
+        defaultSortBy: "p.created_at",
+      });
+      const filters = parseFilters(req.query, BRANCH_PRODUCT_FILTER_FIELDS);
+      const { data, meta } = await this.productService.findByBranch(
         Number(req.params.branchId),
+        pagination,
+        filters,
       );
-      res.status(200).json({ data: results });
+      sendPaginated(res, data, meta);
     } catch (err) {
       next(err);
     }
@@ -66,7 +95,7 @@ export class ProductController {
   findById = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const product = await this.productService.findById(Number(req.params.id));
-      res.status(200).json(product);
+      sendSuccess(res, product);
     } catch (err) {
       next(err);
     }
@@ -85,13 +114,9 @@ export class ProductController {
         data,
         branchId,
       );
-      res
-        .status(200)
-        .json({ message: "Product successfully updated", ...result });
+      sendSuccess(res, { message: "Product updated successfully", ...result });
     } catch (err) {
       next(err);
     }
   };
 }
-
-export const productController = new ProductController(productService);

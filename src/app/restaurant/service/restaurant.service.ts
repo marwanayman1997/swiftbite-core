@@ -1,14 +1,8 @@
 import { Knex } from "knex";
-import { db } from "../../../common/knex/knex.ts";
+import { db } from "../../../lib/knex/knex.ts";
 import { RegisterRestaurantDTO } from "../../auth/dto/auth.dto.ts";
-import { UserAlreadyExistsError } from "../../auth/errors.ts";
-import { hashPassword } from "../../auth/utils.ts";
 import { SystemRole } from "../../user/enums.ts";
-import {
-  createUser,
-  findUserExistsByEmailOrPhone,
-} from "../../user/repository/users.repo.ts";
-import { UnAuthorizedError } from "../../../common/auth/errors.ts";
+import { UnAuthorizedError } from "../../../lib/auth/errors.ts";
 import { RestaurantEntity } from "../entity/restaurant.entity.ts";
 import { RestaurantStatus } from "../enums.ts";
 import { RestaurantNotFoundError } from "../errors.ts";
@@ -24,11 +18,16 @@ import {
   updateRestaurantById,
   updateRestaurantStatus,
 } from "../repository/restaurant.repo.ts";
-import { userService, UserService } from "../../user/service/user.service.ts";
+import { UserService } from "../../user/service/user.service.ts";
 import {
-  memberService,
   MemberService,
 } from "../../rbac/service/member.service.ts";
+import { inject, injectable } from "tsyringe";
+import { TOKENS } from "../../../lib/di/tokens.ts";
+import type {
+  FilterParams,
+  PaginationParams,
+} from "../../../lib/http/pagination/cursor-pagination.ts";
 
 function toPublicRestaurant(restaurant: RestaurantEntity) {
   return {
@@ -43,9 +42,12 @@ function toPublicRestaurant(restaurant: RestaurantEntity) {
   };
 }
 
+@injectable()
 export class RestaurantService {
   constructor(
+    @inject(TOKENS.UserService)
     private readonly userService: UserService,
+    @inject(TOKENS.MemberService)
     private readonly memberService: MemberService,
   ) {}
 
@@ -66,9 +68,9 @@ export class RestaurantService {
     return result;
   };
 
-  findAll = async () => {
-    const result = await findAllRestaurants();
-    return result;
+  findAll = async (pagination: PaginationParams, filters: FilterParams[]) => {
+    const { data, meta } = await findAllRestaurants(pagination, filters);
+    return { data: data.map(toPublicRestaurant), meta };
   };
 
   findById = async (id: number) => {
@@ -118,6 +120,7 @@ export class RestaurantService {
       await trx.commit();
 
       return {
+        message: "Restaurant created successfully",
         restaurant,
         owner: {
           id: user.id,
@@ -192,8 +195,3 @@ export class RestaurantService {
     };
   };
 }
-
-export const restaurantService = new RestaurantService(
-  userService,
-  memberService,
-);

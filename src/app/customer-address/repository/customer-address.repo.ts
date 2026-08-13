@@ -1,4 +1,4 @@
-import { db } from "../../../common/knex/knex.ts";
+import { db } from "../../../lib/knex/knex.ts";
 import { CustomerAddress } from "../entity/customer-address.entity.ts";
 
 const ADDRESS_COLUMNS = [

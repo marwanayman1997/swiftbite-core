@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import {
   validateBody,
   validateParams,
-} from "../../../common/validation/validate.ts";
+} from "../../../lib/validation/validate.ts";
 import { SystemRole } from "../../user/enums.ts";
 import {
   BranchIdParamDTO,
@@ -10,10 +10,24 @@ import {
   UpdateBranchDTO,
   UpdateBranchStatusDTO,
 } from "../dto/branch.dto.ts";
-import { BranchService, branchService } from "../service/branch.service.ts";
+import { BranchService } from "../service/branch.service.ts";
+import { sendPaginated, sendSuccess } from "../../../lib/http/response.ts";
+import {
+  parseFilters,
+  parsePaginationQuery,
+} from "../../../lib/http/pagination/parse-query.ts";
+import { inject, injectable } from "tsyringe";
+import { TOKENS } from "../../../lib/di/tokens.ts";
 
+const BRANCH_SORT_FIELDS = ["created_at", "label"];
+const BRANCH_FILTER_FIELDS = ["is_active", "currency"];
+
+@injectable()
 export class BranchController {
-  constructor(private readonly branchService: BranchService) {}
+  constructor(
+    @inject(TOKENS.BranchService)
+    private readonly branchService: BranchService,
+  ) {}
 
   create = async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -24,7 +38,7 @@ export class BranchController {
         req.user?.role! as SystemRole,
         data,
       );
-      res.status(201).json({ message: "Branch added successfully", branch });
+      sendSuccess(res, { message: "Branch created successfully", branch }, 201);
     } catch (err) {
       next(err);
     }
@@ -36,18 +50,29 @@ export class BranchController {
         Number(req.query.lat),
         Number(req.query.lng),
       );
-      res.status(200).json({ data: results });
+      sendSuccess(res, results);
     } catch (err) {
       next(err);
     }
   };
 
-  findByRestaurant = async (req: Request, res: Response, next: NextFunction) => {
+  findByRestaurant = async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ) => {
     try {
-      const results = await this.branchService.findByRestaurant(
+      const pagination = parsePaginationQuery(req.query, {
+        allowedSortFields: BRANCH_SORT_FIELDS,
+        defaultSortBy: "created_at",
+      });
+      const filters = parseFilters(req.query, BRANCH_FILTER_FIELDS);
+      const { data, meta } = await this.branchService.findByRestaurant(
         Number(req.params.restaurantId),
+        pagination,
+        filters,
       );
-      res.status(200).json({ data: results });
+      sendPaginated(res, data, meta);
     } catch (err) {
       next(err);
     }
@@ -63,7 +88,7 @@ export class BranchController {
         req.user?.role! as SystemRole,
         data,
       );
-      res.status(200).json(result);
+      sendSuccess(res, result);
     } catch (err) {
       next(err);
     }
@@ -78,11 +103,9 @@ export class BranchController {
         Number(params.id),
         data,
       );
-      res.status(200).json(result);
+      sendSuccess(res, result);
     } catch (err) {
       next(err);
     }
   };
 }
-
-export const branchController = new BranchController(branchService);

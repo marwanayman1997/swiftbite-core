@@ -1,8 +1,13 @@
 import { Router } from "express";
-import { authenticate } from "../../common/auth/guard.ts";
-import { customerAddressController } from "./controller/customer-address.controller.ts";
+import { authenticate } from "../../lib/auth/guard.ts";
+import { CustomerAddressController } from "./controller/customer-address.controller.ts";
+import { container } from "../../lib/di/container.ts";
+import { TOKENS } from "../../lib/di/tokens.ts";
 
 export const customerAddressRouter = Router();
+const customerAddressController = container.resolve<CustomerAddressController>(
+  TOKENS.CustomerAddressController,
+);
 
 customerAddressRouter.get("/", authenticate, customerAddressController.getAll);
 customerAddressRouter.post("/", authenticate, customerAddressController.create);

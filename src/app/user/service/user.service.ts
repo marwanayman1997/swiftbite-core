@@ -11,6 +11,7 @@ import { UserAlreadyExistsError } from "../../auth/errors.ts";
 import { hashPassword } from "../../auth/utils.ts";
 import { SystemRole } from "../enums.ts";
 import { User } from "../entity/user.entity.ts";
+import { injectable } from "tsyringe";
 
 export interface CreateUserData {
   email: string;
@@ -20,6 +21,7 @@ export interface CreateUserData {
   systemRole: SystemRole;
 }
 
+@injectable()
 export class UserService {
   create = async (
     data: CreateUserData,
@@ -76,5 +78,3 @@ export class UserService {
     };
   };
 }
-
-export const userService = new UserService();

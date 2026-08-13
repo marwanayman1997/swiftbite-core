@@ -1,4 +1,4 @@
-import { AppError } from "../../common/error/AppError.ts";
+import { AppError } from "../../lib/error/AppError.ts";
 
 export const CannotCreateOwnerUserError = new AppError(
   "Not allowed to create another owner",
@@ -12,5 +12,9 @@ export const CannotDeleteOwnerError = new AppError(
 );
 export const InvalidBranchIdsError = new AppError(
   "One or more branch IDs do not belong to this restaurant",
+  400,
+);
+export const OwnerBranchAssignmentError = new AppError(
+  "Cannot assign branches to owners, they have access to all branches",
   400,
 );

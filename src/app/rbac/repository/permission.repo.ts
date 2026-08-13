@@ -1,5 +1,5 @@
 import { Knex } from "knex";
-import { db } from "../../../common/knex/knex.ts";
+import { db } from "../../../lib/knex/knex.ts";
 import { Permission } from "../entity/permission.entity.ts";
 
 function toEntity(row: any): Permission {

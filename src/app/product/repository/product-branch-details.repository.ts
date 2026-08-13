@@ -1,4 +1,4 @@
-import { db } from "../../../common/knex/knex.ts";
+import { db } from "../../../lib/knex/knex.ts";
 import { ProductBranchDetailsEntity } from "../entity/product-branch-details.entity.ts";
 
 const PBD_COLUMNS = [

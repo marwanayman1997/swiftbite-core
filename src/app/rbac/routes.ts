@@ -1,9 +1,14 @@
 import { Router } from "express";
-import { authenticate } from "../../common/auth/guard.ts";
-import { requireRestaurantMember, rbac } from "../../common/auth/rbac.ts";
-import { memberController } from "./controller/member.controller.ts";
+import { authenticate } from "../../lib/auth/guard.ts";
+import { requireRestaurantMember, rbac } from "../../lib/auth/rbac.ts";
+import { MemberController } from "./controller/member.controller.ts";
+import { container } from "../../lib/di/container.ts";
+import { TOKENS } from "../../lib/di/tokens.ts";
 
 export const rbacRouter = Router();
+const memberController = container.resolve<MemberController>(
+  TOKENS.MemberController,
+);
 
 rbacRouter.post(
   "/restaurants/:restaurantId/members",

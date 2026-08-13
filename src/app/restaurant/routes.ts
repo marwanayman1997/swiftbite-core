@@ -1,12 +1,18 @@
 import { Router } from "express";
-import { restaurantController } from "./controller/restaurant.controller.ts";
-import { authenticate } from "../../common/auth/guard.ts";
-import { requireRestaurantMember, rbac } from "../../common/auth/rbac.ts";
+import { RestaurantController } from "./controller/restaurant.controller.ts";
+import { authenticate } from "../../lib/auth/guard.ts";
+import { requireRestaurantMember, rbac } from "../../lib/auth/rbac.ts";
+import { withCache } from "../../lib/cache/withCache.ts";
+import { container } from "../../lib/di/container.ts";
+import { TOKENS } from "../../lib/di/tokens.ts";
 
 export const restaurantRouter = Router();
+const restaurantController = container.resolve<RestaurantController>(
+  TOKENS.RestaurantController,
+);
 
-restaurantRouter.get("/", restaurantController.getAll);
-restaurantRouter.get("/:id", restaurantController.getById);
+restaurantRouter.get("/", withCache(300), restaurantController.getAll);
+restaurantRouter.get("/:id", withCache(300), restaurantController.getById);
 restaurantRouter.post("/", authenticate, restaurantController.create);
 restaurantRouter.patch(
   "/:id",

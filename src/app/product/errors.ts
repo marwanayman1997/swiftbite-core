@@ -1,4 +1,4 @@
-import { AppError } from "../../common/error/AppError.ts";
+import { AppError } from "../../lib/error/AppError.ts";
 
 export const ProductNotFoundError = new AppError("Product not found", 404);
 

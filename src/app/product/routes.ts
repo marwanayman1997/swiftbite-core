@@ -1,21 +1,29 @@
 import { Router } from "express";
-import { authenticate } from "../../common/auth/guard.ts";
-import { productController } from "./controller/product.controller.ts";
+import { authenticate } from "../../lib/auth/guard.ts";
+import { ProductController } from "./controller/product.controller.ts";
 import {
   requireRestaurantMember,
   rbac,
   requireBranchAccess,
-} from "../../common/auth/rbac.ts";
+} from "../../lib/auth/rbac.ts";
+import { withCache } from "../../lib/cache/withCache.ts";
+import { container } from "../../lib/di/container.ts";
+import { TOKENS } from "../../lib/di/tokens.ts";
 
 export const productRouter = Router();
+const productController = container.resolve<ProductController>(
+  TOKENS.ProductController,
+);
 
 productRouter.get(
   "/restaurants/:restaurantId/categories",
+  withCache(300),
   productController.findCategories,
 );
 
 productRouter.get(
   "/branches/:branchId/products",
+  withCache(60),
   productController.findByBranch,
 );
 

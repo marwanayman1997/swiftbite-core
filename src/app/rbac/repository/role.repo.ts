@@ -1,5 +1,5 @@
 import { Knex } from "knex";
-import { db } from "../../../common/knex/knex.ts";
+import { db } from "../../../lib/knex/knex.ts";
 import { Role } from "../entity/role.entity.ts";
 
 const ROLE_COLUMNS = ["id", "name", "display_name", "created_at", "updated_at"];

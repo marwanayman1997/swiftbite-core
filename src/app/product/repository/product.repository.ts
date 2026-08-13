@@ -1,6 +1,14 @@
 import { Knex } from "knex";
-import { db } from "../../../common/knex/knex.ts";
+import { db } from "../../../lib/knex/knex.ts";
 import { ProductEntity } from "../entity/product.entity.ts";
+import {
+  applyCursorPagination,
+  applyFilters,
+  buildPaginationResult,
+  FilterParams,
+  PaginationMeta,
+  PaginationParams,
+} from "../../../lib/http/pagination/cursor-pagination.ts";
 
 const PRODUCT_COLUMNS = [
   "id",
@@ -75,16 +83,31 @@ export async function findProductById(
 
 export async function findProductsByRestaurant(
   restaurantId: number,
-): Promise<ProductEntity[]> {
-  const rows = await db("products")
+  pagination: PaginationParams,
+  filters: FilterParams[],
+): Promise<{ data: ProductEntity[]; meta: PaginationMeta }> {
+  let query = db("products")
     .select(PRODUCT_COLUMNS)
     .where("restaurant_id", restaurantId)
     .whereNull("deleted_at");
-  return rows.map(toEntity);
+  query = applyFilters(query, filters);
+  query = applyCursorPagination(query, pagination);
+
+  const rows = await query;
+  const { data, meta } = buildPaginationResult(
+    rows,
+    pagination.limit,
+    pagination.sortBy,
+  );
+  return { data: data.map(toEntity), meta };
 }
 
-export async function findProductsByBranch(branchId: number) {
-  const rows = await db("products as p")
+export async function findProductsByBranch(
+  branchId: number,
+  pagination: PaginationParams,
+  filters: FilterParams[],
+) {
+  let query = db("products as p")
     .join("product_branch_details as pbd", "p.id", "pbd.product_id")
     .leftJoin("product_categories as pc", "p.category_id", "pc.id")
     .where("pbd.branch_id", branchId)
@@ -96,21 +119,35 @@ export async function findProductsByBranch(branchId: number) {
       "p.image_url",
       "p.restaurant_id",
       "p.category_id",
+      "p.created_at",
       "pc.name as category_name",
       "pbd.price",
       "pbd.stock",
       "pbd.is_available",
     );
-  return rows.map((row: any) => ({
-    id: Number(row.id),
-    name: row.name,
-    description: row.description,
-    imageUrl: row.image_url,
-    restaurantId: Number(row.restaurant_id),
-    categoryId: row.category_id !== null ? Number(row.category_id) : null,
-    categoryName: row.category_name,
-    price: row.price,
-    stock: row.stock,
-    isAvailable: row.is_available,
-  }));
+  query = applyFilters(query, filters);
+  query = applyCursorPagination(query, pagination, "p.id");
+
+  const rows = await query;
+  const { data, meta } = buildPaginationResult(
+    rows,
+    pagination.limit,
+    pagination.sortBy,
+    "p.id",
+  );
+  return {
+    data: data.map((row: any) => ({
+      id: Number(row.id),
+      name: row.name,
+      description: row.description,
+      imageUrl: row.image_url,
+      restaurantId: Number(row.restaurant_id),
+      categoryId: row.category_id !== null ? Number(row.category_id) : null,
+      categoryName: row.category_name,
+      price: row.price,
+      stock: row.stock,
+      isAvailable: row.is_available,
+    })),
+    meta,
+  };
 }

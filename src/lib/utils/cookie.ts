@@ -1,6 +1,6 @@
 import { Response } from "express";
 import { env } from "../config/env.ts";
-import { toMs } from "./time.ts";
+import { toMs } from "../../pkg/utils/time.ts";
 
 export function setAuthCookies(
   res: Response,

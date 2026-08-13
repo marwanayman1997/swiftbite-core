@@ -1,6 +1,6 @@
 import { Knex } from "knex";
-import { db } from "../../../common/knex/knex.ts";
-import { toMs } from "../../../common/utils/time.ts";
+import { db } from "../../../lib/knex/knex.ts";
+import { toMs } from "../../../pkg/utils/time.ts";
 import { UserAlreadyExistsError } from "../../auth/errors.ts";
 import { createPasswordReset } from "../../auth/repository/password-reset.repo.ts";
 import { generateOTP, hashOTP } from "../../auth/utils.ts";
@@ -22,6 +22,7 @@ import {
   CannotDeleteOwnerError,
   InvalidBranchIdsError,
   MemberNotFoundError,
+  OwnerBranchAssignmentError,
   RoleNotFoundError,
 } from "../errors.ts";
 import {
@@ -36,12 +37,21 @@ import {
   updateMember,
 } from "../repository/restaurant_member.repo.ts";
 import { findRoleByName } from "../repository/role.repo.ts";
-import { userService, UserService } from "../../user/service/user.service.ts";
-import { AppError } from "../../../common/error/AppError.ts";
+import { UserService } from "../../user/service/user.service.ts";
+import { AppError } from "../../../lib/error/AppError.ts";
 import { getPermissionsDetailsByRoleName } from "../repository/permission.repo.ts";
+import { inject, injectable } from "tsyringe";
+import { TOKENS } from "../../../lib/di/tokens.ts";
+import type {
+  FilterParams,
+  PaginationParams,
+} from "../../../lib/http/pagination/cursor-pagination.ts";
 
+@injectable()
 export class MemberService {
-  constructor(private readonly userService: UserService) {}
+  constructor(
+    @inject(TOKENS.UserService) private readonly userService: UserService,
+  ) {}
 
   async createOwnerMember(
     restaurantId: number,
@@ -148,9 +158,12 @@ export class MemberService {
     }
   }
 
-  async listMembers(restaurantId: number) {
-    const members = await findMembersByRestaurantId(restaurantId);
-    return { data: members };
+  async listMembers(
+    restaurantId: number,
+    pagination: PaginationParams,
+    filters: FilterParams[],
+  ) {
+    return await findMembersByRestaurantId(restaurantId, pagination, filters);
   }
 
   async updateMember(
@@ -208,10 +221,7 @@ export class MemberService {
       throw MemberNotFoundError;
     }
     if (result.roleName === "owner") {
-      throw new AppError(
-        "Cannot assign branches to owners, they have access to all branches",
-        400,
-      );
+      throw OwnerBranchAssignmentError;
     }
 
     await this.validateBranchOwnership(data.branchIds, restaurantId);
@@ -228,7 +238,7 @@ export class MemberService {
     await setMemberBranches(memberId, rows);
 
     return {
-      message: "Member branch assignments updated successfully",
+      message: "Member branches updated successfully",
       branchIds: data.branchIds,
     };
   }
@@ -249,5 +259,3 @@ export class MemberService {
     }
   }
 }
-
-export const memberService = new MemberService(userService);

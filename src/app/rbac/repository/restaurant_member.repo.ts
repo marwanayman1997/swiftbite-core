@@ -1,7 +1,15 @@
 import { Knex } from "knex";
-import { db } from "../../../common/knex/knex.ts";
+import { db } from "../../../lib/knex/knex.ts";
 import { RestaurantMember } from "../entity/restaurant-member.entity.ts";
 import { MemberStatus } from "../enums.ts";
+import {
+  applyCursorPagination,
+  applyFilters,
+  buildPaginationResult,
+  FilterParams,
+  PaginationMeta,
+  PaginationParams,
+} from "../../../lib/http/pagination/cursor-pagination.ts";
 
 const MEMBER_COLUMNS = [
   "id",
@@ -71,8 +79,10 @@ export async function findRestaurantMemberWithRole(
 
 export async function findMembersByRestaurantId(
   restaurantId: number,
-): Promise<any[]> {
-  const rows = await db("restaurant_members as rm")
+  pagination: PaginationParams,
+  filters: FilterParams[],
+): Promise<{ data: any[]; meta: PaginationMeta }> {
+  let query = db("restaurant_members as rm")
     .select(
       "rm.id",
       "rm.user_id",
@@ -82,20 +92,34 @@ export async function findMembersByRestaurantId(
       "r.name as role",
       "r.display_name as roleDisplayName",
       "rm.status",
+      "rm.created_at",
     )
     .join("users as u", "rm.user_id", "u.id")
     .join("roles as r", "rm.role_id", "r.id")
     .where("rm.restaurant_id", restaurantId);
-  return rows.map((row) => ({
-    id: Number(row.id),
-    userId: Number(row.user_id),
-    email: row.email,
-    name: row.name,
-    phone: row.phone,
-    role: row.role,
-    roleDisplayName: row.roleDisplayName,
-    status: row.status,
-  }));
+  query = applyFilters(query, filters);
+  query = applyCursorPagination(query, pagination, "rm.id");
+
+  const rows = await query;
+  const { data, meta } = buildPaginationResult(
+    rows,
+    pagination.limit,
+    pagination.sortBy,
+    "rm.id",
+  );
+  return {
+    data: data.map((row: any) => ({
+      id: Number(row.id),
+      userId: Number(row.user_id),
+      email: row.email,
+      name: row.name,
+      phone: row.phone,
+      role: row.role,
+      roleDisplayName: row.roleDisplayName,
+      status: row.status,
+    })),
+    meta,
+  };
 }
 
 export async function findMemberById(

@@ -11,6 +11,7 @@ import {
   CreateAddressDTO,
   UpdateAddressDTO,
 } from "../dto/customer-address.dto.ts";
+import { injectable } from "tsyringe";
 
 function toResponse(address: any) {
   return {
@@ -28,6 +29,7 @@ function toResponse(address: any) {
   };
 }
 
+@injectable()
 export class CustomerAddressService {
   getByUserId = async (userId: number) => {
     const addresses = await findAddressesByUserId(userId);
@@ -66,5 +68,3 @@ export class CustomerAddressService {
     await deleteAddress(addressId);
   };
 }
-
-export const customerAddressService = new CustomerAddressService();

@@ -1,25 +1,17 @@
-import { db } from "../../../common/knex/knex.ts";
+import { db } from "../../../lib/knex/knex.ts";
 import {
   activateMemberByUserId,
   findRestaurantMemberWithRole,
 } from "../../rbac/repository/restaurant_member.repo.ts";
 import { findBranchIdsByMemberId } from "../../rbac/repository/member-branch.repo.ts";
-import {
-  memberService,
-  MemberService,
-} from "../../rbac/service/member.service.ts";
-import {
-  restaurantService,
-  RestaurantService,
-} from "../../restaurant/service/restaurant.service.ts";
+import { MemberService } from "../../rbac/service/member.service.ts";
+import { RestaurantService } from "../../restaurant/service/restaurant.service.ts";
 import { SystemRole } from "../../user/enums.ts";
 import {
   findUserByEmail,
-  findUserExistsByEmailOrPhone,
-  createUser,
   updateUserPassword,
 } from "../../user/repository/users.repo.ts";
-import { userService, UserService } from "../../user/service/user.service.ts";
+import { UserService } from "../../user/service/user.service.ts";
 import {
   ForgetPasswordDTO,
   LoginDTO,
@@ -47,11 +39,17 @@ import {
   hashOTP,
   verifyRefreshToken,
 } from "../utils.ts";
+import { inject, injectable } from "tsyringe";
+import { TOKENS } from "../../../lib/di/tokens.ts";
 
+@injectable()
 export class AuthService {
   constructor(
+    @inject(TOKENS.RestaurantService)
     private readonly restaurantService: RestaurantService,
+    @inject(TOKENS.UserService)
     private readonly userService: UserService,
+    @inject(TOKENS.MemberService)
     private readonly memberService: MemberService,
   ) {}
 
@@ -116,7 +114,7 @@ export class AuthService {
     const refreshToken = createRefreshToken(payload);
 
     return {
-      message: "successfully registered user",
+      message: "User registered successfully",
       accessToken,
       refreshToken,
       user: {
@@ -161,9 +159,7 @@ export class AuthService {
       throw IncorrectCredentials;
     }
 
-    const restaurantMemberInfo = await this.getRestaurantMemberContext(
-      user.id,
-    );
+    const restaurantMemberInfo = await this.getRestaurantMemberContext(user.id);
 
     const payload = {
       userId: user.id,
@@ -175,7 +171,7 @@ export class AuthService {
     const accessToken = createAccessToken(payload);
     const refreshToken = createRefreshToken(payload);
     return {
-      message: "Login successful",
+      message: "User logged in successfully",
       accessToken,
       refreshToken,
       user: {
@@ -252,9 +248,3 @@ export class AuthService {
     return { accessToken };
   };
 }
-
-export const authService = new AuthService(
-  restaurantService,
-  userService,
-  memberService,
-);

@@ -1,16 +1,18 @@
 import { NextFunction, Request, Response } from "express";
-import {
-  CustomerAddressService,
-  customerAddressService,
-} from "../service/customer-address.service.ts";
-import { validateBody } from "../../../common/validation/validate.ts";
+import { CustomerAddressService } from "../service/customer-address.service.ts";
+import { validateBody } from "../../../lib/validation/validate.ts";
 import {
   CreateAddressDTO,
   UpdateAddressDTO,
 } from "../dto/customer-address.dto.ts";
+import { inject, injectable } from "tsyringe";
+import { TOKENS } from "../../../lib/di/tokens.ts";
+import { sendSuccess } from "../../../lib/http/response.ts";
 
+@injectable()
 export class CustomerAddressController {
   constructor(
+    @inject(TOKENS.CustomerAddressService)
     private readonly customerAddressService: CustomerAddressService,
   ) {}
 
@@ -19,7 +21,7 @@ export class CustomerAddressController {
       const addresses = await this.customerAddressService.getByUserId(
         req.user?.userId!,
       );
-      res.status(200).json({ data: addresses });
+      sendSuccess(res, addresses);
     } catch (err) {
       next(err);
     }
@@ -32,7 +34,7 @@ export class CustomerAddressController {
         req.user?.userId!,
         data,
       );
-      res.status(201).json({ message: "Address added", address });
+      sendSuccess(res, { message: "Address created successfully", address }, 201);
     } catch (err) {
       next(err);
     }
@@ -47,7 +49,7 @@ export class CustomerAddressController {
         addressId,
         data,
       );
-      res.status(200).json({ message: "Address updated", address });
+      sendSuccess(res, { message: "Address updated successfully", address });
     } catch (err) {
       next(err);
     }
@@ -57,13 +59,9 @@ export class CustomerAddressController {
     try {
       const addressId = Number(req.params.addressId);
       await this.customerAddressService.remove(req.user?.userId!, addressId);
-      res.status(200).json({ message: "Address deleted" });
+      sendSuccess(res, { message: "Address deleted successfully" });
     } catch (err) {
       next(err);
     }
   };
 }
-
-export const customerAddressController = new CustomerAddressController(
-  customerAddressService,
-);

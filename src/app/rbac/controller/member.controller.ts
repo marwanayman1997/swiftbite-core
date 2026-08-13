@@ -1,14 +1,28 @@
 import { NextFunction, Response, Request } from "express";
-import { validateBody } from "../../../common/validation/validate.ts";
+import { validateBody } from "../../../lib/validation/validate.ts";
 import {
   CreateMemberDTO,
   UpdateMemberBranchesDTO,
   UpdateMemberDTO,
 } from "../dto/member.dto.ts";
-import { MemberService, memberService } from "../service/member.service.ts";
+import { MemberService } from "../service/member.service.ts";
+import { sendPaginated, sendSuccess } from "../../../lib/http/response.ts";
+import {
+  parseFilters,
+  parsePaginationQuery,
+} from "../../../lib/http/pagination/parse-query.ts";
+import { inject, injectable } from "tsyringe";
+import { TOKENS } from "../../../lib/di/tokens.ts";
 
+const MEMBER_SORT_FIELDS = ["rm.created_at", "u.name"];
+const MEMBER_FILTER_FIELDS = ["rm.status", "r.name"];
+
+@injectable()
 export class MemberController {
-  constructor(private readonly memberService: MemberService) {}
+  constructor(
+    @inject(TOKENS.MemberService)
+    private readonly memberService: MemberService,
+  ) {}
 
   createMember = async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -17,7 +31,7 @@ export class MemberController {
         Number(req.params.restaurantId),
         data,
       );
-      res.status(201).json(result);
+      sendSuccess(res, result, 201);
     } catch (error) {
       next(error);
     }
@@ -25,10 +39,17 @@ export class MemberController {
 
   listMembers = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const result = await this.memberService.listMembers(
+      const pagination = parsePaginationQuery(req.query, {
+        allowedSortFields: MEMBER_SORT_FIELDS,
+        defaultSortBy: "rm.created_at",
+      });
+      const filters = parseFilters(req.query, MEMBER_FILTER_FIELDS);
+      const { data, meta } = await this.memberService.listMembers(
         Number(req.params.restaurantId),
+        pagination,
+        filters,
       );
-      res.status(200).json(result);
+      sendPaginated(res, data, meta);
     } catch (error) {
       next(error);
     }
@@ -42,7 +63,7 @@ export class MemberController {
         Number(req.params.memberId),
         data,
       );
-      res.status(200).json(result);
+      sendSuccess(res, result);
     } catch (error) {
       next(error);
     }
@@ -54,7 +75,7 @@ export class MemberController {
         Number(req.params.restaurantId),
         Number(req.params.memberId),
       );
-      res.status(200).json(result);
+      sendSuccess(res, result);
     } catch (error) {
       next(error);
     }
@@ -72,7 +93,7 @@ export class MemberController {
         Number(req.params.memberId),
         data,
       );
-      res.status(200).json(result);
+      sendSuccess(res, result);
     } catch (error) {
       next(error);
     }
@@ -87,11 +108,9 @@ export class MemberController {
       const result = await this.memberService.getRolePermissions(
         req.params.role as string,
       );
-      res.status(200).json(result);
+      sendSuccess(res, result);
     } catch (error) {
       next(error);
     }
   };
 }
-
-export const memberController = new MemberController(memberService);

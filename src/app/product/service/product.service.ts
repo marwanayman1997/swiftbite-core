@@ -1,4 +1,4 @@
-import { UnAuthorizedError } from "../../../common/auth/errors.ts";
+import { UnAuthorizedError } from "../../../lib/auth/errors.ts";
 import { RestaurantNotFoundError } from "../../restaurant/errors.ts";
 import { findRestaurantById } from "../../restaurant/repository/restaurant.repo.ts";
 import { BranchDetailsNotFoundError, ProductNotFoundError } from "../errors.ts";
@@ -17,7 +17,13 @@ import {
   createCategory,
 } from "../repository/category.repository.ts";
 import { updateBranchDetails } from "../repository/product-branch-details.repository.ts";
+import { injectable } from "tsyringe";
+import type {
+  FilterParams,
+  PaginationParams,
+} from "../../../lib/http/pagination/cursor-pagination.ts";
 
+@injectable()
 export class ProductService {
   create = async (
     restaurantId: number,
@@ -56,6 +62,8 @@ export class ProductService {
     restaurantId: number,
     userId: number,
     userRole: SystemRole,
+    pagination: PaginationParams,
+    filters: FilterParams[],
   ) => {
     const restaurant = await findRestaurantById(restaurantId);
     if (!restaurant) throw RestaurantNotFoundError;
@@ -65,15 +73,19 @@ export class ProductService {
     ) {
       throw UnAuthorizedError;
     }
-    return await findProductsByRestaurant(restaurantId);
+    return await findProductsByRestaurant(restaurantId, pagination, filters);
   };
 
   findCategories = async (restaurantId: number) => {
     return await findCategoriesByRestaurant(restaurantId);
   };
 
-  findByBranch = async (branchId: number) => {
-    return await findProductsByBranch(branchId);
+  findByBranch = async (
+    branchId: number,
+    pagination: PaginationParams,
+    filters: FilterParams[],
+  ) => {
+    return await findProductsByBranch(branchId, pagination, filters);
   };
 
   findById = async (id: number) => {
@@ -147,5 +159,3 @@ export class ProductService {
     return { product: updatedProduct, branchDetails };
   };
 }
-
-export const productService = new ProductService();

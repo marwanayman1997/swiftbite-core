@@ -1,5 +1,5 @@
 import { Router, type Request, type Response } from "express";
-import { pingDB } from "../../common/knex/knex.ts";
+import { pingDB } from "../../lib/knex/knex.ts";
 
 export const healthRouter: Router = Router();
 

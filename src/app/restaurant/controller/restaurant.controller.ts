@@ -1,12 +1,9 @@
 import { NextFunction, Request, Response } from "express";
-import {
-  RestaurantService,
-  restaurantService,
-} from "../service/restaurant.service.ts";
+import { RestaurantService } from "../service/restaurant.service.ts";
 import {
   validateBody,
   validateParams,
-} from "../../../common/validation/validate.ts";
+} from "../../../lib/validation/validate.ts";
 import {
   CreateRestaurantDTO,
   RestaurantIdParamDTO,
@@ -14,14 +11,36 @@ import {
   UpdateRestaurantStatusDTO,
 } from "../dto/restaurant.dto.ts";
 import type { SystemRole } from "../../user/enums.ts";
+import { TOKENS } from "../../../lib/di/tokens.ts";
+import { sendPaginated, sendSuccess } from "../../../lib/http/response.ts";
+import {
+  parseFilters,
+  parsePaginationQuery,
+} from "../../../lib/http/pagination/parse-query.ts";
+import { inject, injectable } from "tsyringe";
 
+const RESTAURANT_SORT_FIELDS = ["created_at", "name", "status"];
+const RESTAURANT_FILTER_FIELDS = ["status", "primary_country"];
+
+@injectable()
 export class RestaurantController {
-  constructor(private readonly restaurantService: RestaurantService) {}
+  constructor(
+    @inject(TOKENS.RestaurantService)
+    private readonly restaurantService: RestaurantService,
+  ) {}
 
   getAll = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const result = await this.restaurantService.findAll();
-      res.status(200).json({ data: result });
+      const pagination = parsePaginationQuery(req.query, {
+        allowedSortFields: RESTAURANT_SORT_FIELDS,
+        defaultSortBy: "created_at",
+      });
+      const filters = parseFilters(req.query, RESTAURANT_FILTER_FIELDS);
+      const { data, meta } = await this.restaurantService.findAll(
+        pagination,
+        filters,
+      );
+      sendPaginated(res, data, meta);
     } catch (err) {
       next(err);
     }
@@ -33,7 +52,7 @@ export class RestaurantController {
       const restaurant = await this.restaurantService.findById(
         Number(params.id),
       );
-      res.status(200).json(restaurant);
+      sendSuccess(res, restaurant);
     } catch (err) {
       next(err);
     }
@@ -46,7 +65,7 @@ export class RestaurantController {
         req.user?.role! as SystemRole,
         data,
       );
-      res.status(201).json(result);
+      sendSuccess(res, result, 201);
     } catch (err) {
       next(err);
     }
@@ -62,7 +81,7 @@ export class RestaurantController {
         req.user?.role! as SystemRole,
         data,
       );
-      res.status(200).json(result);
+      sendSuccess(res, result);
     } catch (err) {
       next(err);
     }
@@ -77,11 +96,9 @@ export class RestaurantController {
         Number(params.id),
         data,
       );
-      res.status(200).json(result);
+      sendSuccess(res, result);
     } catch (err) {
       next(err);
     }
   };
 }
-
-export const restaurantController = new RestaurantController(restaurantService);

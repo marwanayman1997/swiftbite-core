@@ -1,17 +1,24 @@
 import { Router } from "express";
-import { branchController } from "./controller/branch.controller.ts";
-import { authenticate } from "../../common/auth/guard.ts";
+import { BranchController } from "./controller/branch.controller.ts";
+import { authenticate } from "../../lib/auth/guard.ts";
 import {
   requireRestaurantMember,
   rbac,
   requireBranchAccess,
-} from "../../common/auth/rbac.ts";
+} from "../../lib/auth/rbac.ts";
+import { withCache } from "../../lib/cache/withCache.ts";
+import { container } from "../../lib/di/container.ts";
+import { TOKENS } from "../../lib/di/tokens.ts";
 
 export const branchRouter = Router();
+const branchController = container.resolve<BranchController>(
+  TOKENS.BranchController,
+);
 
 branchRouter.get("/branches/nearby", branchController.findNearby);
 branchRouter.get(
   "/restaurants/:restaurantId/branches",
+  withCache(300),
   branchController.findByRestaurant,
 );
 branchRouter.post(

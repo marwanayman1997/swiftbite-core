@@ -1,5 +1,5 @@
 import { Knex } from "knex";
-import { db } from "../../../common/knex/knex.ts";
+import { db } from "../../../lib/knex/knex.ts";
 import { ProductCategoryEntity } from "../entity/product-category.entity.ts";
 
 const PRODUCT_CATEGORY_COLUMNS = [

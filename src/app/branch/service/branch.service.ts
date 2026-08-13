@@ -1,4 +1,5 @@
-import { UnAuthorizedError } from "../../../common/auth/errors.ts";
+import { injectable } from "tsyringe";
+import { UnAuthorizedError } from "../../../lib/auth/errors.ts";
 import { RestaurantNotFoundError } from "../../restaurant/errors.ts";
 import { findRestaurantById } from "../../restaurant/repository/restaurant.repo.ts";
 import { SystemRole } from "../../user/enums.ts";
@@ -17,6 +18,10 @@ import {
   updateBranchById,
   updateBranchStatus,
 } from "../repository/branch.repo.ts";
+import type {
+  FilterParams,
+  PaginationParams,
+} from "../../../lib/http/pagination/cursor-pagination.ts";
 
 function toPublicBranch(branch: Branch) {
   return {
@@ -44,6 +49,7 @@ function toPublicBranchWithTimestamp(branch: Branch) {
   };
 }
 
+@injectable()
 export class BranchService {
   findNearby = async (lat: number, lng: number) => {
     const rows = await findNearbyBranches(lat, lng);
@@ -51,9 +57,17 @@ export class BranchService {
     return rows;
   };
 
-  findByRestaurant = async (restaurantId: number) => {
-    const rows = await findBranchesByRestaurant(restaurantId);
-    return rows.map(toPublicBranch);
+  findByRestaurant = async (
+    restaurantId: number,
+    pagination: PaginationParams,
+    filters: FilterParams[],
+  ) => {
+    const { data, meta } = await findBranchesByRestaurant(
+      restaurantId,
+      pagination,
+      filters,
+    );
+    return { data: data.map(toPublicBranch), meta };
   };
 
   create = async (
@@ -168,5 +182,3 @@ export class BranchService {
     };
   };
 }
-
-export const branchService = new BranchService();

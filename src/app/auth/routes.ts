@@ -1,7 +1,10 @@
 import { Router } from "express";
-import { authController } from "./controller/auth.controller.ts";
+import { AuthController } from "./controller/auth.controller.ts";
+import { TOKENS } from "../../lib/di/tokens.ts";
+import { container } from "../../lib/di/container.ts";
 
 export const authRouter = Router();
+const authController = container.resolve<AuthController>(TOKENS.AuthController);
 
 authRouter.post("/register", authController.register);
 authRouter.post("/login", authController.login);

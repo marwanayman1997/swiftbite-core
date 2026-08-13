@@ -1,7 +1,15 @@
 import { Knex } from "knex";
-import { db } from "../../../common/knex/knex.ts";
+import { db } from "../../../lib/knex/knex.ts";
 import { Branch } from "../entity/branch.entity.ts";
 import type { Currency } from "../enums.ts";
+import {
+  applyCursorPagination,
+  applyFilters,
+  buildPaginationResult,
+  FilterParams,
+  PaginationMeta,
+  PaginationParams,
+} from "../../../lib/http/pagination/cursor-pagination.ts";
 
 const BRANCH_COLUMNS = [
   "id",
@@ -72,9 +80,7 @@ export async function createBranch(
   return toEntity(row);
 }
 
-export async function findBranchById(
-  id: number,
-): Promise<Branch | undefined> {
+export async function findBranchById(id: number): Promise<Branch | undefined> {
   const row = await db("restaurant_branches")
     .select(BRANCH_COLUMNS)
     .where("id", id)
@@ -135,11 +141,22 @@ export async function updateBranchStatus(
 
 export async function findBranchesByRestaurant(
   restaurantId: number,
-): Promise<Branch[]> {
-  const rows = await db("restaurant_branches")
+  pagination: PaginationParams,
+  filters: FilterParams[],
+): Promise<{ data: Branch[]; meta: PaginationMeta }> {
+  let query = db("restaurant_branches")
     .select(BRANCH_COLUMNS)
     .where("restaurant_id", restaurantId);
-  return rows.map(toEntity);
+  query = applyFilters(query, filters);
+  query = applyCursorPagination(query, pagination);
+
+  const rows = await query;
+  const { data, meta } = buildPaginationResult(
+    rows,
+    pagination.limit,
+    pagination.sortBy,
+  );
+  return { data: data.map(toEntity), meta };
 }
 
 export async function findNearbyBranches(
