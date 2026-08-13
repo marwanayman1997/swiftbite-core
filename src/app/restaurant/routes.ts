@@ -3,6 +3,7 @@ import { RestaurantController } from "./controller/restaurant.controller.ts";
 import { authenticate } from "../../lib/auth/guard.ts";
 import { requireRestaurantMember, rbac } from "../../lib/auth/rbac.ts";
 import { withCache } from "../../lib/cache/withCache.ts";
+import { idempotency } from "../../lib/idempotency/idempotency.ts";
 import { container } from "../../lib/di/container.ts";
 import { TOKENS } from "../../lib/di/tokens.ts";
 
@@ -13,7 +14,12 @@ const restaurantController = container.resolve<RestaurantController>(
 
 restaurantRouter.get("/", withCache(300), restaurantController.getAll);
 restaurantRouter.get("/:id", withCache(300), restaurantController.getById);
-restaurantRouter.post("/", authenticate, restaurantController.create);
+restaurantRouter.post(
+  "/",
+  authenticate,
+  idempotency({ strict: true }),
+  restaurantController.create,
+);
 restaurantRouter.patch(
   "/:id",
   authenticate,

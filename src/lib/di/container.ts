@@ -1,5 +1,6 @@
 import { container } from "tsyringe";
 import { cacheProvider } from "../cache/init.ts";
+import { emailProvider } from "../email/init.ts";
 import { TOKENS } from "./tokens.ts";
 import { Logger } from "../logger/logger.ts";
 import { AuthController } from "../../app/auth/controller/auth.controller.ts";
@@ -71,5 +72,6 @@ container.registerSingleton<CustomerAddressController>(
 );
 
 container.registerInstance(TOKENS.CacheProvider, cacheProvider);
+container.registerInstance(TOKENS.EmailProvider, emailProvider);
 
 export { container };

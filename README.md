@@ -7,7 +7,8 @@ SwiftBite — a food ordering platform for browsing menus, placing orders, and t
 - Node.js + TypeScript (ESM)
 - Express
 - Knex + PostgreSQL (+ PostGIS, for branch geolocation/delivery-radius queries)
-- Redis (response caching)
+- Redis (response caching, idempotency key storage)
+- Mailjet (transactional email — password reset OTPs, member invitations)
 - tsyringe (dependency injection for controllers/services)
 - Zod (env validation)
 - class-validator + class-transformer (request DTO validation)
@@ -78,6 +79,15 @@ Response shape: `{ "success": true, "data": [...], "meta": { "nextCursor": "..."
 
 Endpoints marked **Cached** are backed by Redis (`withCache` middleware, `src/lib/cache/withCache.ts`) with a short TTL — a `X-Cache: HIT` / `MISS` response header shows whether it was served from cache. Cached responses are invalidated only by TTL expiry, not on writes, so these are restricted to public, low-churn, read-heavy endpoints.
 
+## Idempotency
+
+Endpoints marked **Idempotent** accept an `Idempotency-Key` header (any client-generated unique string) on `POST`/`PATCH`/`PUT` requests. The response for a given key is cached in Redis for 24h — retrying the same request with the same key replays the original response instead of re-executing the operation, so retries after a timeout/network error never create duplicate resources.
+
+- **Idempotent (required)** — the header is mandatory; a request without it is rejected with `400`, and a Redis outage returns `503` rather than risk a duplicate write.
+- **Idempotent (optional)** — the header is honored if present, but its absence doesn't block the request.
+
+Implementation: `src/lib/idempotency/idempotency.ts`.
+
 ## API reference
 
 Base URL: all routes below are mounted under `/api`.
@@ -85,25 +95,25 @@ Base URL: all routes below are mounted under `/api`.
 | Method | Path                                                     | Auth                              | Extras              |
 | ------ | --------------------------------------------------------- | ---------------------------------- | -------------------- |
 | GET    | `/health`                                                  | Public                             |                       |
-| POST   | `/auth/register`                                           | Public                             |                       |
+| POST   | `/auth/register`                                           | Public                             | Idempotent (required) |
 | POST   | `/auth/login`                                              | Public                             |                       |
-| POST   | `/auth/forget-password`                                    | Public                             |                       |
-| POST   | `/auth/reset-password`                                     | Public                             |                       |
-| POST   | `/auth/accept-invite`                                      | Public (requires valid OTP)        |                       |
+| POST   | `/auth/forget-password`                                    | Public                             | Idempotent (required) |
+| POST   | `/auth/reset-password`                                     | Public                             | Idempotent (required) |
+| POST   | `/auth/accept-invite`                                      | Public (requires valid OTP)        | Idempotent (required) |
 | POST   | `/auth/refresh`                                            | Public (requires refresh cookie)   |                       |
 | GET    | `/user/me`                                                 | Auth required                      |                       |
 | PATCH  | `/user/me`                                                 | Auth required                      |                       |
 | GET    | `/customer/addresses`                                      | Auth required                      |                       |
-| POST   | `/customer/addresses`                                      | Auth required                      |                       |
+| POST   | `/customer/addresses`                                      | Auth required                      | Idempotent (optional) |
 | PATCH  | `/customer/addresses/:addressId`                           | Auth required                      |                       |
 | DELETE | `/customer/addresses/:addressId`                           | Auth required                      |                       |
 | GET    | `/restaurants`                                             | Public                             | Paginated · Cached    |
 | GET    | `/restaurants/:id`                                         | Public                             | Cached                |
-| POST   | `/restaurants`                                             | system_admin only                  |                       |
+| POST   | `/restaurants`                                             | system_admin only                  | Idempotent (required) |
 | PATCH  | `/restaurants/:id`                                         | RBAC (`core:restaurant:update`)    |                       |
 | PATCH  | `/restaurants/:id/status`                                  | system_admin only                  |                       |
 | GET    | `/restaurants/:restaurantId/branches`                      | Public                             | Paginated · Cached    |
-| POST   | `/restaurants/:restaurantId/branches`                      | RBAC (`core:branch:create`)        |                       |
+| POST   | `/restaurants/:restaurantId/branches`                      | RBAC (`core:branch:create`)        | Idempotent (required) |
 | GET    | `/branches/nearby`                                         | Public                             |                       |
 | PATCH  | `/branches/:id`                                            | RBAC (`core:branch:update`)        |                       |
 | PATCH  | `/branches/:id/status`                                     | system_admin only                  |                       |
@@ -111,9 +121,9 @@ Base URL: all routes below are mounted under `/api`.
 | GET    | `/product/branches/:branchId/products`                     | Public                             | Paginated · Cached    |
 | GET    | `/product/products/:id`                                    | Public                             |                       |
 | GET    | `/product/restaurants/:restaurantId/products`               | RBAC (`core:product:read`)         | Paginated             |
-| POST   | `/product/restaurants/:restaurantId/products`               | RBAC (`core:product:create`)       |                       |
+| POST   | `/product/restaurants/:restaurantId/products`               | RBAC (`core:product:create`)       | Idempotent (required) |
 | PATCH  | `/product/products/:id`                                    | RBAC (`core:product:update`)       |                       |
-| POST   | `/restaurants/:restaurantId/members`                       | RBAC (`core:member:create`)        |                       |
+| POST   | `/restaurants/:restaurantId/members`                       | RBAC (`core:member:create`)        | Idempotent (required) |
 | GET    | `/restaurants/:restaurantId/members`                       | RBAC (`core:member:read`)          | Paginated             |
 | PATCH  | `/restaurants/:restaurantId/members/:memberId`             | RBAC (`core:member:update`)        |                       |
 | DELETE | `/restaurants/:restaurantId/members/:memberId`             | RBAC (`core:member:delete`)        |                       |
@@ -126,12 +136,14 @@ Base URL: all routes below are mounted under `/api`.
 src/
   app/
     auth/               # register, login, password reset, invite acceptance (+ restaurant self-signup)
+      templates/          # password-reset email template
     user/                # current-user profile
     customer-address/    # customer delivery addresses (CRUD)
     restaurant/           # restaurant CRUD, status management
     branch/               # restaurant branches, geolocation search
     product/               # products, categories, per-branch price/stock
     rbac/                   # restaurant membership, roles, permissions
+      templates/              # member-invitation email template
     health/                  # DB health check
   lib/
     auth/                 # authenticate middleware, RBAC middleware, shared auth errors
@@ -139,16 +151,19 @@ src/
     config/                  # Zod-validated env
     correlation/              # correlation-id middleware
     di/                        # tsyringe container + injection tokens
-    error/                      # AppError + global error handler
-    http/                        # response envelope (sendSuccess/sendPaginated), pagination utils
-    knex/                         # knex instance + knexfile
-    logger/                       # logger
-    types/                         # Express Request augmentation (req.user, req.correlationId)
-    utils/                         # cookie helpers
-    validation/                    # validateBody / validateParams (class-validator wrapper)
+    email/                      # email provider wiring (Mailjet instance)
+    error/                        # AppError + global error handler
+    http/                          # response envelope (sendSuccess/sendPaginated), pagination utils
+    idempotency/                    # idempotency middleware (Idempotency-Key handling)
+    knex/                             # knex instance + knexfile
+    logger/                           # logger
+    types/                             # Express Request augmentation (req.user, req.correlationId)
+    utils/                             # cookie helpers
+    validation/                        # validateBody / validateParams (class-validator wrapper)
   pkg/
     cache/                # Redis cache provider implementation
-    utils/                 # time helpers
+    email/                 # IEmailProvider interface + Mailjet adapter
+    utils/                  # time helpers
   migrations/               # Knex migrations
 ```
 

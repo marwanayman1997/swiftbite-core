@@ -159,13 +159,43 @@ export async function findBranchesByRestaurant(
   return { data: data.map(toEntity), meta };
 }
 
+export interface NearbyBranch {
+  id: number;
+  restaurantId: number;
+  addressText: string;
+  label: string;
+  lat: number;
+  lng: number;
+  isActive: boolean;
+  acceptOrders: boolean;
+  currency: string;
+  restaurantName: string;
+  restaurantLogoUrl: string;
+}
+
+function toNearbyBranch(row: any): NearbyBranch {
+  return {
+    id: Number(row.id),
+    restaurantId: Number(row.restaurant_id),
+    addressText: row.address_text,
+    label: row.label,
+    lat: Number(row.lat),
+    lng: Number(row.lng),
+    isActive: row.is_active,
+    acceptOrders: row.accept_orders,
+    currency: row.currency,
+    restaurantName: row.name,
+    restaurantLogoUrl: row.logo_url,
+  };
+}
+
 export async function findNearbyBranches(
   lat: number,
   lng: number,
-): Promise<Branch[]> {
+): Promise<NearbyBranch[]> {
   const result = await db.raw(
     `
-       SELECT 
+       SELECT
        b.id,
        b.restaurant_id,
        b.address_text,
@@ -184,5 +214,5 @@ export async function findNearbyBranches(
     [lng, lat],
   );
 
-  return result.rows;
+  return result.rows.map(toNearbyBranch);
 }

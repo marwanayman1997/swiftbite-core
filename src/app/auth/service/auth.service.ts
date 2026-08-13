@@ -39,8 +39,10 @@ import {
   hashOTP,
   verifyRefreshToken,
 } from "../utils.ts";
+import { passwordResetEmail } from "../templates/password-reset.ts";
 import { inject, injectable } from "tsyringe";
 import { TOKENS } from "../../../lib/di/tokens.ts";
+import type { IEmailProvider } from "../../../pkg/email/email.interface.ts";
 
 @injectable()
 export class AuthService {
@@ -51,6 +53,8 @@ export class AuthService {
     private readonly userService: UserService,
     @inject(TOKENS.MemberService)
     private readonly memberService: MemberService,
+    @inject(TOKENS.EmailProvider)
+    private readonly emailProvider: IEmailProvider,
   ) {}
 
   register = async (data: RegisterDTO) => {
@@ -198,8 +202,8 @@ export class AuthService {
       expiresAt: new Date(Date.now() + 10 * 60 * 1000),
       createdAt: new Date(),
     });
-    // TODO: send email
-    console.log(`Mocked email sent ${otp}`);
+    const email = passwordResetEmail(otp);
+    await this.emailProvider.send(data.email, email.subject, email.html);
   };
 
   resetPassword = async (data: ResetPasswordDTO) => {

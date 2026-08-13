@@ -2,5 +2,5 @@
   "js/ts.inlayHints.parameterTypes.enabled": true,
   "js/ts.inlayHints.functionLikeReturnTypes.enabled": true,
   "js/ts.inlayHints.variableTypes.enabled": true,
-  "cSpell.words": ["knexfile", "tsyringe", "uuidv"]
+  "cSpell.words": ["knexfile", "Mailjet", "tsyringe", "uuidv"]
 }

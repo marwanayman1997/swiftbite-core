@@ -2,6 +2,7 @@ import { Router } from "express";
 import { authenticate } from "../../lib/auth/guard.ts";
 import { requireRestaurantMember, rbac } from "../../lib/auth/rbac.ts";
 import { MemberController } from "./controller/member.controller.ts";
+import { idempotency } from "../../lib/idempotency/idempotency.ts";
 import { container } from "../../lib/di/container.ts";
 import { TOKENS } from "../../lib/di/tokens.ts";
 
@@ -15,6 +16,7 @@ rbacRouter.post(
   authenticate,
   requireRestaurantMember("restaurantId"),
   rbac({ resource: "core:member", action: "create" }),
+  idempotency({ strict: true }),
   memberController.createMember,
 );
 

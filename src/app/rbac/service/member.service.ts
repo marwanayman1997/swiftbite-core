@@ -40,8 +40,10 @@ import { findRoleByName } from "../repository/role.repo.ts";
 import { UserService } from "../../user/service/user.service.ts";
 import { AppError } from "../../../lib/error/AppError.ts";
 import { getPermissionsDetailsByRoleName } from "../repository/permission.repo.ts";
+import { memberInvitationEmail } from "../templates/member-invitation.ts";
 import { inject, injectable } from "tsyringe";
 import { TOKENS } from "../../../lib/di/tokens.ts";
+import type { IEmailProvider } from "../../../pkg/email/email.interface.ts";
 import type {
   FilterParams,
   PaginationParams,
@@ -51,6 +53,8 @@ import type {
 export class MemberService {
   constructor(
     @inject(TOKENS.UserService) private readonly userService: UserService,
+    @inject(TOKENS.EmailProvider)
+    private readonly emailProvider: IEmailProvider,
   ) {}
 
   async createOwnerMember(
@@ -134,8 +138,8 @@ export class MemberService {
         },
         trx,
       );
-      // TODO: send email
-      console.log(`Mocked email sent ${otp}`);
+      const email = memberInvitationEmail(otp, data.role);
+      await this.emailProvider.send(data.email, email.subject, email.html);
 
       await trx.commit();
 

@@ -7,6 +7,7 @@ import {
   requireBranchAccess,
 } from "../../lib/auth/rbac.ts";
 import { withCache } from "../../lib/cache/withCache.ts";
+import { idempotency } from "../../lib/idempotency/idempotency.ts";
 import { container } from "../../lib/di/container.ts";
 import { TOKENS } from "../../lib/di/tokens.ts";
 
@@ -40,6 +41,7 @@ productRouter.post(
   authenticate,
   requireRestaurantMember("restaurantId"),
   rbac({ resource: "core:product", action: "create" }),
+  idempotency({ strict: true }),
   productController.create,
 );
 
