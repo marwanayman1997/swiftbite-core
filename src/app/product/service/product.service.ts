@@ -22,6 +22,9 @@ import type {
   FilterParams,
   PaginationParams,
 } from "../../../lib/http/pagination/cursor-pagination.ts";
+import { db } from "../../../lib/knex/knex.ts";
+import { insertOutboxEvent } from "../../../lib/events/outbox.repo.ts";
+import { v4 as uuidv4 } from "uuid";
 
 @injectable()
 export class ProductService {
@@ -146,13 +149,45 @@ export class ProductService {
         data.stock !== undefined ||
         data.isAvailable !== undefined)
     ) {
-      branchDetails = await updateBranchDetails(branchId, productId, {
-        price: data.price,
-        stock: data.stock,
-        isAvailable: data.isAvailable,
-      });
-      if (!branchDetails) {
-        throw BranchDetailsNotFoundError;
+      const trx = await db.transaction();
+      try {
+        branchDetails = await updateBranchDetails(
+          branchId,
+          productId,
+          {
+            price: data.price,
+            stock: data.stock,
+            isAvailable: data.isAvailable,
+          },
+          trx,
+        );
+        if (!branchDetails) {
+          throw BranchDetailsNotFoundError;
+        }
+
+        if (data.price !== undefined) {
+          await insertOutboxEvent(trx, {
+            aggregateType: "product_branch_details",
+            aggregateId: branchDetails.id,
+            eventType: "product.price.changed",
+            eventId: uuidv4(),
+            payload: { branchId, productId, price: branchDetails.price },
+          });
+        }
+        if (data.stock !== undefined) {
+          await insertOutboxEvent(trx, {
+            aggregateType: "product_branch_details",
+            aggregateId: branchDetails.id,
+            eventType: "product.stock.changed",
+            eventId: uuidv4(),
+            payload: { branchId, productId, stock: branchDetails.stock },
+          });
+        }
+
+        await trx.commit();
+      } catch (err) {
+        await trx.rollback();
+        throw err;
       }
     }
 

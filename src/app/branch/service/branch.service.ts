@@ -22,6 +22,9 @@ import type {
   FilterParams,
   PaginationParams,
 } from "../../../lib/http/pagination/cursor-pagination.ts";
+import { db } from "../../../lib/knex/knex.ts";
+import { insertOutboxEvent } from "../../../lib/events/outbox.repo.ts";
+import { v4 as uuidv4 } from "uuid";
 
 function toPublicBranch(branch: Branch) {
   return {
@@ -134,17 +137,38 @@ export class BranchService {
       throw UnAuthorizedError;
     }
 
-    const updated = await updateBranchById(id, {
-      label: data.label,
-      addressText: data.addressText,
-      lat: data.lat,
-      lng: data.lng,
-      opensAt: data.opensAt,
-      closesAt: data.closesAt,
-      deliveryRadius: data.deliveryRadius,
-      currency: data.currency,
-      acceptOrders: data.acceptOrders,
-    });
+    const trx = await db.transaction();
+    let updated;
+    try {
+      updated = await updateBranchById(
+        id,
+        {
+          label: data.label,
+          addressText: data.addressText,
+          lat: data.lat,
+          lng: data.lng,
+          opensAt: data.opensAt,
+          closesAt: data.closesAt,
+          deliveryRadius: data.deliveryRadius,
+          currency: data.currency,
+          acceptOrders: data.acceptOrders,
+        },
+        trx,
+      );
+
+      await insertOutboxEvent(trx, {
+        aggregateType: "restaurant_branch",
+        aggregateId: id,
+        eventType: "branch.updated",
+        eventId: uuidv4(),
+        payload: { branchId: id },
+      });
+
+      await trx.commit();
+    } catch (err) {
+      await trx.rollback();
+      throw err;
+    }
 
     return {
       message: "Branch updated successfully",
@@ -166,10 +190,30 @@ export class BranchService {
       throw BranchNotFoundError;
     }
 
-    const updated = await updateBranchStatus(id, {
-      isActive: data.isActive,
-      commission: data.commission,
-    });
+    const trx = await db.transaction();
+    let updated;
+    try {
+      updated = await updateBranchStatus(
+        id,
+        { isActive: data.isActive, commission: data.commission },
+        trx,
+      );
+
+      const eventType =
+        data.isActive === false ? "branch.deactivated" : "branch.updated";
+      await insertOutboxEvent(trx, {
+        aggregateType: "restaurant_branch",
+        aggregateId: id,
+        eventType,
+        eventId: uuidv4(),
+        payload: { branchId: id, isActive: updated!.isActive },
+      });
+
+      await trx.commit();
+    } catch (err) {
+      await trx.rollback();
+      throw err;
+    }
 
     return {
       message: "Branch status updated successfully",

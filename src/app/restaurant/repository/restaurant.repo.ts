@@ -85,9 +85,10 @@ export async function updateRestaurantById(
 export async function updateRestaurantStatus(
   id: number,
   status: RestaurantStatus,
+  conn: Knex = db,
 ): Promise<RestaurantEntity | undefined> {
   const now = new Date();
-  const [row] = await db("restaurants")
+  const [row] = await conn("restaurants")
     .where("id", id)
     .update({ status, status_updated_at: now, updated_at: now })
     .returning(RESTAURANT_COLUMNS);

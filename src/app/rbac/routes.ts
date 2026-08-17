@@ -5,6 +5,9 @@ import { MemberController } from "./controller/member.controller.ts";
 import { idempotency } from "../../lib/idempotency/idempotency.ts";
 import { container } from "../../lib/di/container.ts";
 import { TOKENS } from "../../lib/di/tokens.ts";
+import { requireInternalApiKey } from "../../lib/auth/api-key.ts";
+import { getPermissionsByRoleName } from "./repository/permission.repo.ts";
+import { sendSuccess } from "../../lib/http/response.ts";
 
 export const rbacRouter = Router();
 const memberController = container.resolve<MemberController>(
@@ -53,3 +56,18 @@ rbacRouter.put(
 );
 
 rbacRouter.get("/roles/:role/permissions", memberController.getRolePermissions);
+
+// Internal, order-service only (guarded by api-key, not JWT).
+rbacRouter.get(
+  "/internal/rbac/permissions",
+  requireInternalApiKey,
+  async (req, res, next) => {
+    try {
+      const role = String(req.query.role || "");
+      const permissions = await getPermissionsByRoleName(role);
+      sendSuccess(res, { role, permissions });
+    } catch (err) {
+      next(err);
+    }
+  },
+);

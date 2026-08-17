@@ -17,6 +17,7 @@ export class Branch {
   deliveryRadius: number; // KM
   currency: Currency;
   commission: number;
+  deliveryFee: number;
   location?: String;
 
   constructor(data: Partial<Branch>) {
@@ -36,5 +37,6 @@ export class Branch {
     this.deliveryRadius = data.deliveryRadius ?? 0;
     this.currency = data.currency!;
     this.commission = data.commission ?? 0;
+    this.deliveryFee = data.deliveryFee ?? 0;
   }
 }

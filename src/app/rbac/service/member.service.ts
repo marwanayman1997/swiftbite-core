@@ -43,6 +43,7 @@ import { getPermissionsDetailsByRoleName } from "../repository/permission.repo.t
 import { memberInvitationEmail } from "../templates/member-invitation.ts";
 import { inject, injectable } from "tsyringe";
 import { TOKENS } from "../../../lib/di/tokens.ts";
+import { logger } from "../../../lib/logger/logger.ts";
 import type { IEmailProvider } from "../../../pkg/email/email.interface.ts";
 import type {
   FilterParams,
@@ -138,10 +139,30 @@ export class MemberService {
         },
         trx,
       );
-      const email = memberInvitationEmail(otp, data.role);
-      await this.emailProvider.send(data.email, email.subject, email.html);
 
       await trx.commit();
+
+      // Sending the invite email is intentionally outside the transaction
+      // and best-effort: the member record is real and useful the moment
+      // it's committed (an admin can already see/manage it), and a
+      // transient email-provider outage shouldn't fail the whole invite.
+      // The OTP is already persisted, so a failed send here isn't fatal —
+      // it just means the invitee needs the OTP resent through some other
+      // channel (e.g. a future "resend invite" action) rather than never
+      // having a member record created at all.
+      let emailSent = true;
+      try {
+        const email = memberInvitationEmail(otp, data.role);
+        await this.emailProvider.send(data.email, email.subject, email.html);
+      } catch (err) {
+        emailSent = false;
+        logger.error("Failed to send member invitation email", {
+          memberId: member.id,
+          userId: user.id,
+          email: data.email,
+          error: (err as Error).message,
+        });
+      }
 
       return {
         message: "Member invited successfully",
@@ -155,6 +176,7 @@ export class MemberService {
           status: MemberStatus.INACTIVE,
           branchIds,
         },
+        emailSent,
       };
     } catch (err) {
       await trx.rollback();

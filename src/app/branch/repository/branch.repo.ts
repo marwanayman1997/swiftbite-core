@@ -28,6 +28,7 @@ const BRANCH_COLUMNS = [
   "delivery_radius",
   "currency",
   "commission",
+  "delivery_fee",
   "location",
 ];
 
@@ -49,6 +50,7 @@ function toEntity(row: any) {
     deliveryRadius: row.delivery_radius,
     currency: row.currency,
     commission: row.commission,
+    deliveryFee: Number(row.delivery_fee),
     location: row.location,
   });
 }
@@ -100,7 +102,9 @@ export async function updateBranchById(
     deliveryRadius: number;
     currency: Currency;
     acceptOrders: boolean;
+    deliveryFee: number;
   }>,
+  conn: Knex = db,
 ): Promise<Branch | undefined> {
   const payload: Record<string, unknown> = { updated_at: new Date() };
   if (data.label !== undefined) payload.label = data.label;
@@ -116,8 +120,9 @@ export async function updateBranchById(
   if (data.acceptOrders !== undefined) {
     payload.accept_orders = data.acceptOrders;
   }
+  if (data.deliveryFee !== undefined) payload.delivery_fee = data.deliveryFee;
 
-  const [row] = await db("restaurant_branches")
+  const [row] = await conn("restaurant_branches")
     .where("id", id)
     .update(payload)
     .returning(BRANCH_COLUMNS);
@@ -127,12 +132,13 @@ export async function updateBranchById(
 export async function updateBranchStatus(
   id: number,
   data: Partial<{ isActive: boolean; commission: number }>,
+  conn: Knex = db,
 ): Promise<Branch | undefined> {
   const payload: Record<string, unknown> = { updated_at: new Date() };
   if (data.isActive !== undefined) payload.is_active = data.isActive;
   if (data.commission !== undefined) payload.commission = data.commission;
 
-  const [row] = await db("restaurant_branches")
+  const [row] = await conn("restaurant_branches")
     .where("id", id)
     .update(payload)
     .returning(BRANCH_COLUMNS);

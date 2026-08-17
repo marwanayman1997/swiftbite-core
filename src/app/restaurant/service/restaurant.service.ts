@@ -19,11 +19,11 @@ import {
   updateRestaurantStatus,
 } from "../repository/restaurant.repo.ts";
 import { UserService } from "../../user/service/user.service.ts";
-import {
-  MemberService,
-} from "../../rbac/service/member.service.ts";
+import { MemberService } from "../../rbac/service/member.service.ts";
 import { inject, injectable } from "tsyringe";
 import { TOKENS } from "../../../lib/di/tokens.ts";
+import { insertOutboxEvent } from "../../../lib/events/outbox.repo.ts";
+import { v4 as uuidv4 } from "uuid";
 import type {
   FilterParams,
   PaginationParams,
@@ -184,7 +184,26 @@ export class RestaurantService {
       throw RestaurantNotFoundError;
     }
 
-    const updated = await updateRestaurantStatus(id, data.status);
+    const trx = await db.transaction();
+    let updated;
+    try {
+      updated = await updateRestaurantStatus(id, data.status, trx);
+
+      if (data.status === RestaurantStatus.SUSPENDED) {
+        await insertOutboxEvent(trx, {
+          aggregateType: "restaurant",
+          aggregateId: id,
+          eventType: "restaurant.suspended",
+          eventId: uuidv4(),
+          payload: { restaurantId: id },
+        });
+      }
+
+      await trx.commit();
+    } catch (err) {
+      await trx.rollback();
+      throw err;
+    }
 
     return {
       message: "Restaurant status updated successfully",

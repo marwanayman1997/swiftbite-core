@@ -21,6 +21,7 @@ export function errorHandler(
   if (operational) {
     return res.status(err.statusCode).json({
       error: err.message,
+      ...(err.details !== undefined ? { details: err.details } : {}),
     });
   }
   return res.status(500).json({
